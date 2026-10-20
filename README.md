@@ -18,6 +18,7 @@ A small frosted-glass to-do widget for the macOS desktop.
 The menu bar icon (✓ plus the number of tasks left) lets you:
 - show or hide the widget
 - choose where it sits: on the desktop behind windows, like a normal window, or always on top
+- keep it on one desktop (the default) or turn on **Show on All Desktops**. To move it to another desktop, switch to that desktop and choose **Move Widget to This Desktop**
 - turn on **Open at Login**
 
 ## Build

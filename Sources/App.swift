@@ -55,6 +55,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         set { UserDefaults.standard.set(newValue.rawValue, forKey: "placement"); applyPlacement() }
     }
 
+    /// Off by default: the widget lives on the desktop (Space) it was opened on.
+    private var onAllDesktops: Bool {
+        get { UserDefaults.standard.bool(forKey: "onAllDesktops") }
+        set { UserDefaults.standard.set(newValue, forKey: "onAllDesktops"); applyPlacement() }
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         makePanel()
         makeStatusItem()
@@ -104,9 +110,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func applyPlacement() {
         panel.level = placement.level
-        panel.collectionBehavior = placement == .normal
-            ? [.canJoinAllSpaces, .fullScreenAuxiliary]
-            : [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
+        var behavior: NSWindow.CollectionBehavior = [.fullScreenAuxiliary]
+        if onAllDesktops { behavior.insert(.canJoinAllSpaces) }
+        if placement != .normal { behavior.formUnion([.stationary, .ignoresCycle]) }
+        panel.collectionBehavior = behavior
     }
 
     // MARK: - Menu bar
@@ -149,6 +156,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         menu.addItem(.separator())
 
+        let allDesktops = NSMenuItem(title: "Show on All Desktops", action: #selector(toggleAllDesktops), keyEquivalent: "")
+        allDesktops.target = self
+        allDesktops.state = onAllDesktops ? .on : .off
+        menu.addItem(allDesktops)
+        if !onAllDesktops {
+            let move = NSMenuItem(title: "Move Widget to This Desktop", action: #selector(moveToThisDesktop), keyEquivalent: "")
+            move.target = self
+            menu.addItem(move)
+        }
+        menu.addItem(.separator())
+
         let login = NSMenuItem(title: "Open at Login", action: #selector(toggleLaunchAtLogin), keyEquivalent: "")
         login.target = self
         login.state = SMAppService.mainApp.status == .enabled ? .on : .off
@@ -187,6 +205,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // DayList has no Dock icon, so bring it forward explicitly.
         NSApp.activate()
         weekWindow?.makeKeyAndOrderFront(nil)
+    }
+
+    @objc private func toggleAllDesktops() {
+        onAllDesktops.toggle()
+        panel.orderFrontRegardless()
+    }
+
+    /// Briefly lets the widget join every desktop so it appears here, then pins it to this one.
+    @objc private func moveToThisDesktop() {
+        panel.collectionBehavior.insert(.canJoinAllSpaces)
+        panel.orderFrontRegardless()
+        DispatchQueue.main.async { [weak self] in self?.applyPlacement() }
     }
 
     @objc private func choosePlacement(_ sender: NSMenuItem) {
