@@ -54,7 +54,8 @@ struct WeekView: View {
         .padding(.top, 34)
         .padding(.bottom, 20)
         .frame(minWidth: 760, minHeight: 520)
-        .background(GlassBackground())
+        // A near-solid backdrop: the widget's see-through glass washes out coloured text here.
+        .background(GlassBackground(material: .windowBackground))
     }
 
     // MARK: - Top
@@ -110,7 +111,7 @@ struct WeekView: View {
         return HStack(spacing: 10) {
             Image(systemName: "calendar.badge.exclamationmark")
                 .font(.system(size: 16))
-                .foregroundStyle(Palette.amber)
+                .foregroundStyle(Palette.amberInk)
             VStack(alignment: .leading, spacing: 1) {
                 Text(asked ? "DayList can't see your calendar" : "Show your Google Calendar here")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
@@ -189,7 +190,7 @@ struct WeekView: View {
                 VStack(spacing: 3) {
                     Text(day.formatted(.dateTime.weekday(.abbreviated)).uppercased())
                         .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                        .foregroundStyle(isToday ? AnyShapeStyle(Palette.sage) : AnyShapeStyle(.secondary))
+                        .foregroundStyle(isToday ? AnyShapeStyle(Palette.sageInk) : AnyShapeStyle(.secondary))
                     Text(day.formatted(.dateTime.day()))
                         .font(.system(size: 17, weight: .semibold, design: .rounded))
                         .foregroundStyle(isToday ? AnyShapeStyle(Color.white) : AnyShapeStyle(.primary))
@@ -197,7 +198,7 @@ struct WeekView: View {
                         .background(Circle().fill(isToday ? Palette.sage : .clear))
                     Text(count > 0 ? "✓ \(count)" : " ")
                         .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                        .foregroundStyle(Palette.sage)
+                        .foregroundStyle(Palette.sageInk)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -477,12 +478,16 @@ struct StatCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
                 Image(systemName: icon)
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 18, height: 18)
+                    .background(Circle().fill(tint))
                 Text(title)
+                    .font(.system(size: 11.5, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.secondary)
             }
-            .font(.system(size: 11, weight: .semibold, design: .rounded))
-            .foregroundStyle(tint)
             Text(value)
                 .font(.system(size: 21, weight: .semibold, design: .rounded))
                 .lineLimit(1)

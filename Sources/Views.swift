@@ -5,6 +5,18 @@ enum Palette {
     static let amber = Color(red: 0.95, green: 0.58, blue: 0.22)
     static let rose = Color(red: 0.93, green: 0.33, blue: 0.36)
 
+    /// Darker (light mode) / lighter (dark mode) versions for text, so it stays readable on any wallpaper.
+    static let sageInk = ink(light: (0.13, 0.45, 0.30), dark: (0.55, 0.85, 0.68))
+    static let amberInk = ink(light: (0.70, 0.36, 0.02), dark: (1.00, 0.72, 0.40))
+    static let blueInk = ink(light: (0.10, 0.35, 0.75), dark: (0.55, 0.75, 1.00))
+
+    private static func ink(light: (Double, Double, Double), dark: (Double, Double, Double)) -> Color {
+        Color(nsColor: NSColor(name: nil) { appearance in
+            let c = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
+            return NSColor(red: c.0, green: c.1, blue: c.2, alpha: 1)
+        })
+    }
+
     static func tint(for urgency: Urgency) -> Color? {
         switch urgency {
         case .normal: nil
@@ -327,9 +339,11 @@ struct ProgressRing: View {
 
 /// Frosted-glass backdrop that blurs whatever sits behind the window.
 struct GlassBackground: NSViewRepresentable {
+    var material: NSVisualEffectView.Material = .popover
+
     func makeNSView(context: Context) -> NSVisualEffectView {
         let view = NSVisualEffectView()
-        view.material = .popover
+        view.material = material
         view.blendingMode = .behindWindow
         view.state = .active
         return view
