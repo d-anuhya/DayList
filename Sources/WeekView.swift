@@ -265,7 +265,8 @@ struct WeekView: View {
                     done: done.filter { cal.isDate($0.doneAt, inSameDayAs: day) }.sorted { $0.doneAt < $1.doneAt },
                     startHour: hours.lowerBound,
                     hourHeight: hourHeight,
-                    isToday: cal.isDate(day, inSameDayAs: store.today)
+                    isToday: cal.isDate(day, inSameDayAs: store.today),
+                    store: store
                 )
                 .frame(maxWidth: .infinity)
                 .frame(height: height)
@@ -318,6 +319,7 @@ struct DayColumn: View {
     let startHour: Int
     let hourHeight: CGFloat
     let isToday: Bool
+    let store: TaskStore
 
     private struct Placed: Identifiable {
         let event: CalendarEvent
@@ -345,15 +347,6 @@ struct DayColumn: View {
                         .offset(x: 3 + CGFloat(placed.lane) * laneWidth, y: top)
                 }
 
-                ForEach(Array(doneOffsets().enumerated()), id: \.element.0.id) { _, item in
-                    HStack(spacing: 0) {
-                        Spacer(minLength: width * 0.12)
-                        DoneChip(completion: item.0)
-                    }
-                    .frame(width: width)
-                    .offset(x: 3, y: min(item.1, maxY - 20))
-                }
-
                 if isToday {
                     let nowY = y(for: .now)
                     if nowY > 0 && nowY < maxY {
@@ -363,6 +356,22 @@ struct DayColumn: View {
                         }
                         .offset(x: -3, y: nowY - 3.5)
                     }
+                }
+
+                ForEach(Array(doneOffsets().enumerated()), id: \.element.0.id) { _, item in
+                    let completion = item.0
+                    DoneChip(completion: completion)
+                        .frame(width: width - 2)
+                        .offset(x: 4, y: min(item.1, maxY - 22))
+                        .contextMenu {
+                            if completion.repeatsDaily {
+                                Button("Remove This Day's Tick") { withAnimation { store.removeCompletion(completion) } }
+                                Divider()
+                                Button("Delete Daily Task", role: .destructive) { withAnimation { store.deleteTask(id: completion.taskID) } }
+                            } else {
+                                Button("Delete Task", role: .destructive) { withAnimation { store.deleteTask(id: completion.taskID) } }
+                            }
+                        }
                 }
             }
         }
@@ -408,7 +417,7 @@ struct DayColumn: View {
     private func doneOffsets() -> [(Completion, CGFloat)] {
         var lastY = -CGFloat.infinity
         return done.map { completion in
-            let top = max(y(for: completion.doneAt) - 9, lastY + 21)
+            let top = max(y(for: completion.doneAt) - 10, lastY + 23)
             lastY = top
             return (completion, top)
         }
@@ -449,7 +458,8 @@ struct DoneChip: View {
     let completion: Completion
 
     var body: some View {
-        HStack(spacing: 4) {
+        let shape = RoundedRectangle(cornerRadius: 6, style: .continuous)
+        HStack(spacing: 5) {
             Image(systemName: "checkmark")
                 .font(.system(size: 8, weight: .heavy))
                 .foregroundStyle(.white)
@@ -458,12 +468,13 @@ struct DoneChip: View {
             Text(completion.title)
                 .font(.system(size: 10.5, weight: .medium, design: .rounded))
                 .lineLimit(1)
+            Spacer(minLength: 0)
         }
-        .padding(.leading, 3)
-        .padding(.trailing, 7)
-        .frame(height: 19)
-        .background(Capsule().fill(.regularMaterial))
-        .overlay(Capsule().strokeBorder(Palette.sage.opacity(0.5), lineWidth: 1))
+        .padding(.horizontal, 5)
+        .frame(height: 21)
+        .background(shape.fill(.regularMaterial))
+        .overlay(shape.strokeBorder(Palette.sage.opacity(0.5), lineWidth: 1))
+        .contentShape(shape)
         .help("\(completion.title) — done at \(completion.doneAt.formatted(date: .omitted, time: .shortened))"
               + (completion.dayNumber >= 2 && !completion.repeatsDaily ? " (day \(completion.dayNumber))" : ""))
     }

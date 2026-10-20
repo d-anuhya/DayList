@@ -172,8 +172,30 @@ final class TaskStore: ObservableObject {
     }
 
     func delete(_ task: TaskItem) {
-        tasks.removeAll { $0.id == task.id }
+        deleteTask(id: task.id)
+    }
+
+    /// Removes a task and its ticks in the week view. Works even after the task has left the list.
+    func deleteTask(id: UUID) {
+        tasks.removeAll { $0.id == id }
+        completions.removeAll { $0.taskID == id }
         save()
+        saveHistory()
+    }
+
+    /// Removes one tick of a daily task, keeping the task itself.
+    func removeCompletion(_ completion: Completion) {
+        if let i = tasks.firstIndex(where: { $0.id == completion.taskID }) {
+            if tasks[i].doneAt == completion.doneAt {
+                tasks[i].doneAt = tasks[i].previousDoneAt
+                tasks[i].previousDoneAt = nil
+            } else if tasks[i].previousDoneAt == completion.doneAt {
+                tasks[i].previousDoneAt = nil
+            }
+            save()
+        }
+        completions.removeAll { $0.id == completion.id }
+        saveHistory()
     }
 
     /// Restarts the day count, which clears the orange/red warning.
