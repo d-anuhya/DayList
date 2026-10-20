@@ -20,6 +20,10 @@
     <string>14.0</string>
     <key>LSUIElement</key>
     <true/>
+    <key>NSCalendarsFullAccessUsageDescription</key>
+    <string>DayList shows today's events next to your tasks and lays out your week.</string>
+    <key>NSCalendarsUsageDescription</key>
+    <string>DayList shows today's events next to your tasks and lays out your week.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
 </dict>

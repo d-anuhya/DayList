@@ -16,6 +16,8 @@ enum Palette {
 
 struct DayListView: View {
     @ObservedObject var store: TaskStore
+    @ObservedObject var calendarStore: CalendarStore
+    let onOpenWeek: () -> Void
     // `State(...)` instead of `@State`: the @State macro needs full Xcode to compile.
     private let draftState = State(initialValue: "")
     private var draft: String {
@@ -36,6 +38,11 @@ struct DayListView: View {
 
             if store.overdueCount > 0 {
                 overdueBanner
+            }
+
+            let events = calendarStore.upcomingToday()
+            if !events.isEmpty {
+                UpNextList(events: events)
             }
 
             if tasks.isEmpty {
@@ -81,6 +88,16 @@ struct DayListView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            Button(action: onOpenWeek) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+                    .background(Circle().fill(Color.primary.opacity(0.06)))
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Show this week")
             ProgressRing(done: tasks.filter(store.isDone).count, total: tasks.count)
         }
     }
@@ -136,6 +153,44 @@ struct DayListView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.06)))
+    }
+}
+
+/// Today's remaining calendar events, shown above the tasks.
+struct UpNextList: View {
+    let events: [CalendarEvent]
+    private let maxShown = 3
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            ForEach(events.prefix(maxShown)) { event in
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 2).fill(event.color).frame(width: 3, height: 16)
+                    Text(event.title)
+                        .font(.system(size: 12.5, weight: .medium, design: .rounded))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                    Text(timeLabel(event))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .monospacedDigit()
+                        .foregroundStyle(event.start <= .now && !event.isAllDay ? AnyShapeStyle(event.color) : AnyShapeStyle(.secondary))
+                }
+            }
+            if events.count > maxShown {
+                Text("+\(events.count - maxShown) more today")
+                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
+                    .foregroundStyle(.tertiary)
+                    .padding(.leading, 11)
+            }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color.primary.opacity(0.04)))
+    }
+
+    private func timeLabel(_ event: CalendarEvent) -> String {
+        if event.isAllDay { return "All day" }
+        if event.start <= .now { return "Now" }
+        return event.start.formatted(date: .omitted, time: .shortened)
     }
 }
 

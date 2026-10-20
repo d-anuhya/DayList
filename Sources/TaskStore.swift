@@ -29,6 +29,17 @@ struct TaskItem: Codable, Identifiable, Equatable {
     }
 }
 
+/// One ticked-off task, kept after the task itself is gone so the week view can show it.
+struct Completion: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var taskID: UUID
+    var title: String
+    var doneAt: Date
+    var repeatsDaily: Bool
+    /// Which day the task had been waiting when it was finished (1 = done the day it was due).
+    var dayNumber: Int
+}
+
 /// How pressing a task is, based on how many days it has been waiting.
 enum Urgency {
     case normal   // day 1
@@ -40,10 +51,12 @@ enum Urgency {
 @MainActor
 final class TaskStore: ObservableObject {
     @Published private(set) var tasks: [TaskItem] = []
+    @Published private(set) var completions: [Completion] = []
     @Published private(set) var today = Calendar.current.startOfDay(for: .now)
 
     private let calendar = Calendar.current
     private let fileURL: URL
+    private let historyURL: URL
     private var timer: Timer?
 
     init() {
@@ -51,7 +64,9 @@ final class TaskStore: ObservableObject {
             .appendingPathComponent("DayList", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         fileURL = folder.appendingPathComponent("tasks.json")
+        historyURL = folder.appendingPathComponent("history.json")
         load()
+        loadHistory()
         pruneOldDoneTasks()
 
         // Catch midnight so tasks age (and daily ones reset) without a restart.
@@ -131,14 +146,20 @@ final class TaskStore: ObservableObject {
     func toggle(_ task: TaskItem) {
         guard let i = tasks.firstIndex(where: { $0.id == task.id }) else { return }
         if isDone(tasks[i]) {
+            let undone = tasks[i].doneAt
+            completions.removeAll { $0.taskID == task.id && $0.doneAt == undone }
             // Un-ticking a daily task brings back its previous completion.
             tasks[i].doneAt = tasks[i].repeatsDaily ? tasks[i].previousDoneAt : nil
             tasks[i].previousDoneAt = nil
         } else {
             tasks[i].previousDoneAt = tasks[i].repeatsDaily ? tasks[i].doneAt : nil
-            tasks[i].doneAt = .now
+            let now = Date.now
+            completions.append(Completion(taskID: task.id, title: tasks[i].title, doneAt: now,
+                                          repeatsDaily: tasks[i].repeatsDaily, dayNumber: dayNumber(of: tasks[i])))
+            tasks[i].doneAt = now
         }
         save()
+        saveHistory()
     }
 
     func setRepeatsDaily(_ task: TaskItem, _ repeats: Bool) {
@@ -189,6 +210,36 @@ final class TaskStore: ObservableObject {
         guard let data = try? Data(contentsOf: fileURL),
               let saved = try? decoder.decode([TaskItem].self, from: data) else { return }
         tasks = saved
+    }
+
+    /// The first time the log is created, fill it from the completions tasks still remember.
+    private func loadHistory() {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        if let data = try? Data(contentsOf: historyURL),
+           let saved = try? decoder.decode([Completion].self, from: data) {
+            let cutoff = calendar.date(byAdding: .day, value: -180, to: today) ?? .distantPast
+            completions = saved.filter { $0.doneAt >= cutoff }
+            return
+        }
+        for task in tasks {
+            for doneAt in [task.previousDoneAt, task.doneAt].compactMap({ $0 }) {
+                let waited = calendar.dateComponents([.day], from: calendar.startOfDay(for: task.addedOn),
+                                                     to: calendar.startOfDay(for: doneAt)).day ?? 0
+                completions.append(Completion(taskID: task.id, title: task.title, doneAt: doneAt,
+                                              repeatsDaily: task.repeatsDaily,
+                                              dayNumber: task.repeatsDaily ? 1 : max(1, waited + 1)))
+            }
+        }
+        saveHistory()
+    }
+
+    private func saveHistory() {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted]
+        encoder.dateEncodingStrategy = .iso8601
+        guard let data = try? encoder.encode(completions) else { return }
+        try? data.write(to: historyURL, options: .atomic)
     }
 
     private func save() {

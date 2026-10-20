@@ -44,7 +44,9 @@ final class WidgetPanel: NSPanel {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private let store = TaskStore()
+    private let calendarStore = CalendarStore()
     private var panel: WidgetPanel!
+    private var weekWindow: NSWindow?
     private var statusItem: NSStatusItem!
     private var cancellables = Set<AnyCancellable>()
 
@@ -56,6 +58,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         makePanel()
         makeStatusItem()
+        calendarStore.requestAccess()
 
         NSWorkspace.shared.notificationCenter.addObserver(forName: NSWorkspace.didWakeNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in self?.store.rollOverIfNeeded() }
@@ -84,7 +87,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         panel.becomesKeyOnlyIfNeeded = true
         panel.minSize = NSSize(width: 260, height: 300)
 
-        let host = NSHostingView(rootView: DayListView(store: store))
+        let host = NSHostingView(rootView: DayListView(store: store, calendarStore: calendarStore) { [weak self] in
+            self?.showWeek()
+        })
         host.sizingOptions = []
         panel.contentView = host
 
@@ -127,6 +132,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let toggle = NSMenuItem(title: panel.isVisible ? "Hide Widget" : "Show Widget", action: #selector(toggleWidget), keyEquivalent: "")
         toggle.target = self
         menu.addItem(toggle)
+        let week = NSMenuItem(title: "Show Week…", action: #selector(showWeek), keyEquivalent: "")
+        week.target = self
+        menu.addItem(week)
         menu.addItem(.separator())
 
         let header = NSMenuItem(title: "Position", action: nil, keyEquivalent: "")
@@ -152,6 +160,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func toggleWidget() {
         if panel.isVisible { panel.orderOut(nil) } else { panel.orderFrontRegardless() }
+    }
+
+    // MARK: - Week window
+
+    @objc private func showWeek() {
+        if weekWindow == nil {
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 1080, height: 720),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+                backing: .buffered,
+                defer: false
+            )
+            window.title = "DayList — Week"
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            window.isReleasedWhenClosed = false
+            window.contentView = NSHostingView(rootView: WeekView(store: store, calendarStore: calendarStore))
+            window.minSize = NSSize(width: 800, height: 560)
+            if !window.setFrameUsingName("DayListWeek") { window.center() }
+            window.setFrameAutosaveName("DayListWeek")
+            weekWindow = window
+        }
+        // DayList has no Dock icon, so bring it forward explicitly.
+        NSApp.activate()
+        weekWindow?.makeKeyAndOrderFront(nil)
     }
 
     @objc private func choosePlacement(_ sender: NSMenuItem) {
